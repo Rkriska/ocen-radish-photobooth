@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>O &amp; R — photobooth</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,300;1,9..144,500&family=DM+Mono:wght@400&family=Caveat:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{--paper:#f6eee4;--ink:#3a2c28;--accent:#e58f8f;--line:#e2d3c3;--card:#fffaf4}
+  body[data-theme=radish]{--paper:#fbeef0;--accent:#d9607a;--line:#efcfd6;--card:#fff7f8}
+  body[data-theme=ocean]{--paper:#eaf3f5;--accent:#4f97a8;--line:#c9e0e5;--card:#f7fcfd}
+  body[data-theme=garden]{--paper:#eff2e6;--accent:#7f9a5c;--line:#d5ddc2;--card:#fbfcf6}
+  body[data-theme=night]{--paper:#25212b;--ink:#f2e9df;--accent:#f0c36b;--line:#433b4c;--card:#2f2a36}
+  *{box-sizing:border-box;margin:0}
+  body{min-height:100vh;background:var(--paper);color:var(--ink);font-family:"DM Mono",monospace;
+    display:grid;place-items:center;padding:32px 16px;transition:background .4s,color .4s;overflow-x:hidden}
+  .bg{position:fixed;inset:0;pointer-events:none;z-index:0}
+  .bg span{position:absolute;font-size:26px;opacity:.5;animation:float 7s ease-in-out infinite}
+  @keyframes float{50%{transform:translateY(-14px) rotate(8deg)}}
+  @media (prefers-reduced-motion:reduce){.bg span{animation:none}}
+  main{position:relative;z-index:1;display:grid;grid-template-columns:minmax(0,560px) 230px;gap:40px;align-items:start}
+  @media (max-width:860px){main{grid-template-columns:1fr;justify-items:center;gap:24px}
+    body{padding:16px 12px} h1{font-size:38px} .tag{font-size:20px}
+    section{width:100%} .stage{border-width:6px;aspect-ratio:3/4}
+    button{padding:10px 14px} .go{flex:1} canvas{width:min(70vw,260px)}}
+  header{grid-column:1/-1;display:flex;align-items:center;gap:14px;border-bottom:1.5px dashed var(--line);padding-bottom:12px;width:100%}
+  h1{font-family:Fraunces,serif;font-style:italic;font-weight:300;font-size:48px;letter-spacing:-1px}
+  h1 b{font-weight:500;color:var(--accent)}
+  .tag{font-family:Caveat,cursive;font-size:24px;color:var(--accent);transform:rotate(-4deg)}
+  .stage{position:relative;background:#1d1a18;border-radius:18px;overflow:hidden;aspect-ratio:4/3;width:100%;
+    border:10px solid var(--card);box-shadow:0 18px 40px -20px #3b2e2680}
+  .stage::before,.stage::after{content:"";position:absolute;z-index:2;width:90px;height:26px;background:var(--accent);opacity:.55;top:-4px}
+  .stage::before{left:18px;transform:rotate(-8deg)} .stage::after{right:18px;transform:rotate(7deg)}
+  video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+  video.back{transform:none}
+  .flip{position:absolute;z-index:3;right:12px;bottom:12px;background:#fffc;border:none;font-size:20px;padding:8px 12px}
+  .count{position:absolute;inset:0;display:grid;place-items:center;font-family:Fraunces,serif;font-style:italic;
+    font-size:140px;color:#fff;text-shadow:0 4px 30px #0006;pointer-events:none}
+  .flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .4s}
+  .flash.on{opacity:1;transition:none}
+  .controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;align-items:center}
+  .controls span{font-family:Caveat,cursive;font-size:20px;color:var(--accent);margin-right:4px;min-width:52px}
+  button{font:inherit;font-size:12px;border:1.5px solid var(--ink);background:var(--card);color:var(--ink);
+    padding:8px 14px;border-radius:999px;cursor:pointer;transition:transform .15s,background .15s,color .15s}
+  button:hover{transform:translateY(-2px) rotate(-1deg)}
+  button[aria-pressed=true]{background:var(--ink);color:var(--paper)}
+  button.go{background:var(--accent);border-color:var(--accent);color:#fff;padding:11px 24px;font-size:13px}
+  button:disabled{opacity:.5;cursor:wait;transform:none}
+  .strip-wrap{display:flex;flex-direction:column;align-items:center;gap:12px}
+  canvas{width:210px;height:auto;box-shadow:0 16px 30px -14px #3b2e2690;transform:rotate(2deg)}
+  .hint{font-family:Caveat,cursive;font-size:19px;opacity:.75;text-align:center;max-width:210px;line-height:1.2}
+  .err{color:#a1453a;font-size:12px;margin-top:10px}
+</style>
+</head>
+<body data-theme="radish">
+<div class="bg" id="bg" aria-hidden="true"></div>
+<main>
+  <header><h1><b>O</b> &amp; <b>R</b></h1><p class="tag">ocen &amp; radish's lil photobooth ♡</p></header>
+
+  <section>
+    <div class="stage">
+      <video id="cam" autoplay playsinline muted></video>
+      <div class="count" id="count"></div>
+      <div class="flash" id="flash"></div>
+      <button class="flip" id="flip" aria-label="ganti kamera depan/belakang">🔄</button>
+    </div>
+    <div class="controls" id="themes">
+      <span>tema</span>
+      <button data-t="radish" aria-pressed="true">🌱 radish</button>
+      <button data-t="ocean">🐚 ocen</button>
+      <button data-t="garden">🌼 garden</button>
+      <button data-t="cream">🍓 cream</button>
+      <button data-t="night">🌙 night</button>
+    </div>
+    <div class="controls" id="filters">
+      <span>filter</span>
+      <button data-f="none" aria-pressed="true">asli</button>
+      <button data-f="sepia(.55) contrast(1.05) saturate(.9)">film</button>
+      <button data-f="grayscale(1) contrast(1.15)">b&amp;w</button>
+      <button data-f="saturate(1.3) hue-rotate(-12deg) brightness(1.05)">peach</button>
+      <button data-f="contrast(.9) brightness(1.1) saturate(.7)">pudar</button>
+    </div>
+    <div class="controls">
+      <button class="go" id="shoot">📸 ambil 4 foto</button>
+      <button id="save" disabled>unduh strip</button>
+    </div>
+    <p class="err" id="err" hidden></p>
+  </section>
+
+  <aside class="strip-wrap">
+    <canvas id="strip" width="600"></canvas>
+    <p class="hint">4 jepretan, jeda 3 detik ~ fotonya cuma disimpan di perangkat kamu</p>
+  </aside>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const video = $('#cam'), strip = $('#strip'), ctx = strip.getContext('2d');
+const W = 600, PAD = 46, PW = W - PAD*2, PH = PW*3/4, GAP = 26, FOOT = 230;
+strip.height = PAD + 4*(PH+GAP) + FOOT;
+
+const THEMES = {
+  radish:{paper:'#fde7ea', ink:'#6b2f3a', accent:'#d9607a', dots:'#f6c9d1', deco:['radish','heart','sparkle','leaf'], bg:'🌱💗✨🌸'},
+  ocean: {paper:'#dff0f3', ink:'#244a55', accent:'#4f97a8', dots:'#bfdfe6', deco:['wave','shell','star','bubble'], bg:'🐚🌊⭐🫧'},
+  garden:{paper:'#eef1e0', ink:'#3e4a2c', accent:'#7f9a5c', dots:'#d8dfc0', deco:['flower','leaf','heart','sparkle'], bg:'🌼🍃🌷🐝'},
+  cream: {paper:'#fbf4ea', ink:'#4a3530', accent:'#e07a6f', dots:'#efe0cc', deco:['cherry','heart','flower','sparkle'], bg:'🍓🍒🎀🧁'},
+  night: {paper:'#2b2633', ink:'#f4ead8', accent:'#f0c36b', dots:'#3d3647', deco:['moon','star','sparkle','star'], bg:'🌙⭐✨🪐'},
+};
+let theme = 'radish', filter = 'none', shots = [];
+
+let facing = 'user', stream = null;
+async function startCam(){
+  stream?.getTracks().forEach(t => t.stop());
+  const err = $('#err'); err.hidden = true;
+  if(!navigator.mediaDevices?.getUserMedia){
+    err.hidden = false; err.textContent = 'Browser ini tidak mendukung kamera, atau halaman tidak dibuka lewat https.'; return;
+  }
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing},width:{ideal:1280},height:{ideal:960}},audio:false});
+  }catch(e){
+    try{ stream = await navigator.mediaDevices.getUserMedia({video:true,audio:false}); }
+    catch(e2){ err.hidden = false; err.textContent = 'Kamera ditolak. Izinkan akses kamera di pengaturan browser, lalu muat ulang halaman.'; return; }
+  }
+  video.srcObject = stream;
+  video.classList.toggle('back', facing === 'environment');
+}
+startCam();
+$('#flip').onclick = () => { facing = facing === 'user' ? 'environment' : 'user'; startCam(); };
+
+function pick(group, attr, set){
+  group.addEventListener('click', e => {
+    const b = e.target.closest('button'); if(!b) return;
+    group.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x===b));
+    set(b.dataset[attr]); draw();
+  });
+}
+pick($('#themes'),'t', v => { theme = v; document.body.dataset.theme = v; floaties(); });
+pick($('#filters'),'f', v => { filter = v; video.style.filter = v; });
+
+function floaties(){
+  const bg = $('#bg'), icons = [...THEMES[theme].bg]; bg.innerHTML = '';
+  const spots = [[4,10],[90,8],[8,70],[94,62],[48,94],[20,40],[80,88],[60,4],[2,92],[96,30]];
+  spots.forEach(([x,y],i) => {
+    const s = document.createElement('span'); s.textContent = icons[i % icons.length];
+    s.style.left = x+'%'; s.style.top = y+'%'; s.style.animationDelay = (-i*0.9)+'s';
+    bg.appendChild(s);
+  });
+}
+
+/* ---------- ornamen digambar manual di canvas ---------- */
+const O = {
+  heart(g,c){ g.fillStyle=c; g.beginPath(); g.moveTo(0,8);
+    g.bezierCurveTo(-22,-8,-10,-26,0,-12); g.bezierCurveTo(10,-26,22,-8,0,8); g.fill(); },
+  sparkle(g,c){ g.fillStyle=c; g.beginPath();
+    for(let i=0;i<8;i++){ const r=i%2?5:18, a=i*Math.PI/4; g.lineTo(Math.cos(a)*r,Math.sin(a)*r); } g.fill(); },
+  star(g,c){ g.fillStyle=c; g.beginPath();
+    for(let i=0;i<10;i++){ const r=i%2?7:17, a=i*Math.PI/5-Math.PI/2; g.lineTo(Math.cos(a)*r,Math.sin(a)*r); } g.closePath(); g.fill(); },
+  leaf(g,c){ g.fillStyle='#8fb174'; g.beginPath(); g.ellipse(0,0,8,18,.6,0,7); g.fill();
+    g.strokeStyle='#6f9157'; g.lineWidth=1.5; g.beginPath(); g.moveTo(-8,10); g.lineTo(8,-10); g.stroke(); },
+  flower(g,c){ g.fillStyle=c; for(let i=0;i<5;i++){ g.beginPath(); const a=i*2*Math.PI/5;
+      g.arc(Math.cos(a)*10,Math.sin(a)*10,8,0,7); g.fill(); }
+    g.fillStyle='#f6d36b'; g.beginPath(); g.arc(0,0,6,0,7); g.fill(); },
+  cherry(g,c){ g.strokeStyle='#6f8f4e'; g.lineWidth=2.5; g.beginPath(); g.moveTo(-8,6); g.quadraticCurveTo(-2,-14,6,-20);
+    g.moveTo(9,8); g.quadraticCurveTo(8,-8,6,-20); g.stroke();
+    g.fillStyle='#d94a4a'; [[-9,10],[10,12]].forEach(([x,y])=>{g.beginPath();g.arc(x,y,8,0,7);g.fill();});
+    g.fillStyle='#fff8'; g.beginPath(); g.arc(-12,7,2.5,0,7); g.fill(); },
+  bubble(g,c){ g.strokeStyle=c; g.lineWidth=2.5; g.beginPath(); g.arc(0,0,12,0,7); g.stroke();
+    g.beginPath(); g.arc(-4,-4,3,0,7); g.fillStyle=c; g.fill(); },
+  shell(g,c){ g.fillStyle='#f4c7b8'; g.beginPath(); g.moveTo(0,14); g.arc(0,0,17,Math.PI*1.05,Math.PI*1.95); g.closePath(); g.fill();
+    g.strokeStyle='#d99a87'; g.lineWidth=1.8; for(let i=-2;i<=2;i++){ g.beginPath(); g.moveTo(0,14); g.lineTo(i*7,-12+Math.abs(i)*3); g.stroke(); } },
+  wave(g,c){ g.strokeStyle=c; g.lineWidth=3; g.lineCap='round'; g.beginPath();
+    for(let x=-22;x<=22;x+=11){ g.quadraticCurveTo(x-5.5, x%22? 8:-8, x,0); } g.stroke(); },
+  moon(g,c){ g.fillStyle=c; g.beginPath(); g.arc(0,0,16,0,7); g.fill();
+    g.globalCompositeOperation='destination-out'; g.beginPath(); g.arc(8,-5,14,0,7); g.fill(); g.globalCompositeOperation='source-over'; },
+  radish(g,c){ // si radish, lengkap dengan muka
+    g.fillStyle='#7fae63'; [[-8,-30,-.5],[0,-34,0],[8,-30,.5]].forEach(([x,y,r])=>{g.save();g.translate(x,y);g.rotate(r);
+      g.beginPath();g.ellipse(0,0,5,11,0,0,7);g.fill();g.restore();});
+    g.fillStyle='#e8657f'; g.beginPath(); g.moveTo(0,22); g.bezierCurveTo(-24,6,-20,-24,0,-22); g.bezierCurveTo(20,-24,24,6,0,22); g.fill();
+    g.fillStyle='#fff6'; g.beginPath(); g.ellipse(-8,-10,4,7,.4,0,7); g.fill();
+    g.fillStyle='#4a2630'; [-6,6].forEach(x=>{g.beginPath();g.arc(x,-4,2,0,7);g.fill();});
+    g.strokeStyle='#4a2630'; g.lineWidth=1.5; g.beginPath(); g.arc(0,0,3,.2,Math.PI-.2); g.stroke();
+    g.fillStyle='#ff9fb1'; [-11,11].forEach(x=>{g.beginPath();g.ellipse(x,1,3,2,0,0,7);g.fill();}); },
+  fish(g,c){ g.fillStyle=c; g.beginPath(); g.ellipse(0,0,16,10,0,0,7); g.fill();
+    g.beginPath(); g.moveTo(14,0); g.lineTo(26,-9); g.lineTo(26,9); g.fill();
+    g.fillStyle='#fff'; g.beginPath(); g.arc(-7,-2,3,0,7); g.fill(); g.fillStyle='#244a55'; g.beginPath(); g.arc(-7,-2,1.5,0,7); g.fill(); },
+};
+function orn(name,x,y,s=1,r=0,c){ ctx.save(); ctx.translate(x,y); ctx.rotate(r); ctx.scale(s,s); O[name](ctx,c); ctx.restore(); }
+
+function tape(x,y,r,c){ ctx.save(); ctx.translate(x,y); ctx.rotate(r); ctx.globalAlpha=.55; ctx.fillStyle=c;
+  ctx.fillRect(-36,-11,72,22); ctx.globalAlpha=1; ctx.restore(); }
+
+function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.roundRect(x,y,w,h,r); }
+
+/* acak tapi stabil, supaya ornamen tidak loncat-loncat tiap redraw */
+function rng(seed){ return () => (seed = (seed*16807) % 2147483647) / 2147483647; }
+
+function grab(){
+  const c = document.createElement('canvas'); c.width = PW*2; c.height = PH*2;
+  const g = c.getContext('2d'), vw = video.videoWidth, vh = video.videoHeight;
+  const r = Math.max(c.width/vw, c.height/vh), sw = c.width/r, sh = c.height/r;
+  if(facing === 'user'){ g.translate(c.width,0); g.scale(-1,1); }
+  g.drawImage(video,(vw-sw)/2,(vh-sh)/2,sw,sh,0,0,c.width,c.height);
+  return c;
+}
+
+function draw(){
+  const T = THEMES[theme], rnd = rng(7);
+  ctx.fillStyle = T.paper; ctx.fillRect(0,0,W,strip.height);
+  ctx.fillStyle = T.dots;
+  for(let y=12;y<strip.height;y+=24) for(let x=(y/24%2)*12+12;x<W;x+=24){ ctx.beginPath(); ctx.arc(x,y,2.2,0,7); ctx.fill(); }
+
+  for(let i=0;i<4;i++){
+    const y = PAD + i*(PH+GAP);
+    ctx.fillStyle = '#ffffff'; roundRect(PAD-8,y-8,PW+16,PH+16,14); ctx.fill();
+    ctx.save(); roundRect(PAD,y,PW,PH,10); ctx.clip();
+    ctx.fillStyle = theme==='night' ? '#3a332f' : '#eee4d8'; ctx.fillRect(PAD,y,PW,PH);
+    if(shots[i]){ ctx.filter = filter; ctx.drawImage(shots[i],PAD,y,PW,PH); ctx.filter='none'; }
+    else { ctx.fillStyle = T.ink; ctx.globalAlpha=.35; ctx.font='500 30px Caveat, cursive'; ctx.textAlign='center';
+      ctx.fillText(['senyum dulu~','pose lucu!','peace ✌','yang terakhir ♡'][i], W/2, y+PH/2+10); ctx.globalAlpha=1; }
+    ctx.restore();
+    if(i%2===0) tape(PAD+30,y-4,-.35,T.accent); else tape(W-PAD-30,y-4,.3,T.accent);
+    const side = i%2 ? PAD-6 : W-PAD+6;
+    orn(T.deco[i%T.deco.length], side, y+PH-6, 1.1, (rnd()-.5)*.8, T.accent);
+    orn('sparkle', i%2 ? W-PAD-10 : PAD+10, y+PH+2, .55, 0, T.accent);
+  }
+
+  const base = PAD + 4*(PH+GAP);
+  ctx.fillStyle = T.ink; ctx.textAlign = 'center';
+  ctx.font = 'italic 300 92px Fraunces, serif';
+  ctx.fillText('O & R', W/2, base+92);
+  ctx.font = '700 34px Caveat, cursive'; ctx.fillStyle = T.accent;
+  ctx.fillText('ocen & radish', W/2, base+136);
+  ctx.font = '400 15px "DM Mono", monospace'; ctx.fillStyle = T.ink; ctx.globalAlpha=.55;
+  ctx.fillText(new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'}).toUpperCase(), W/2, base+170);
+  ctx.globalAlpha = 1;
+
+  orn(theme==='ocean' ? 'fish' : 'radish', 90, base+80, 1.6, -.2, T.accent);
+  orn(theme==='ocean' ? 'shell' : 'heart', W-90, base+76, 1.5, .2, T.accent);
+  orn('sparkle', 140, base+30, .7, 0, T.accent);
+  orn('sparkle', W-140, base+150, .6, 0, T.accent);
+  orn(theme==='ocean' ? 'wave' : 'heart', W/2, base+200, .7, 0, T.accent);
+}
+floaties();
+document.fonts.ready.then(draw);
+
+const wait = ms => new Promise(r => setTimeout(r, ms));
+$('#shoot').onclick = async () => {
+  if(!video.videoWidth) return;
+  const btn = $('#shoot'); btn.disabled = true; $('#save').disabled = true; shots = []; draw();
+  for(let i=0;i<4;i++){
+    for(let n=3;n>0;n--){ $('#count').textContent = n; await wait(800); }
+    $('#count').textContent = '';
+    $('#flash').classList.add('on'); shots.push(grab()); draw();
+    await wait(60); $('#flash').classList.remove('on'); await wait(500);
+  }
+  btn.disabled = false; btn.textContent = '📸 ulangi'; $('#save').disabled = false;
+};
+$('#save').onclick = () => {
+  const a = document.createElement('a');
+  a.download = `ocen-radish-${theme}-${Date.now()}.png`; a.href = strip.toDataURL('image/png'); a.click();
+};
+</script>
+</body>
+</html>
